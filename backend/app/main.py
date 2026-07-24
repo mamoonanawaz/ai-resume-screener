@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from app.services.text_extractor import extract_text
 
@@ -57,3 +57,21 @@ async def extract_resume(resume: UploadFile = File(...)):
             status_code=500,
             detail=f"Text extraction failed: {str(error)}"
         )
+
+
+@app.post("/job-description")
+async def submit_job_description(
+    job_description: str = Form(...)
+):
+    cleaned_description = job_description.strip()
+
+    if len(cleaned_description) < 20:
+        raise HTTPException(
+            status_code=400,
+            detail="Job description must contain at least 20 characters."
+        )
+
+    return {
+        "job_description": cleaned_description,
+        "character_count": len(cleaned_description)
+    }
