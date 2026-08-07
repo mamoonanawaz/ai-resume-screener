@@ -2,14 +2,15 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from app.services.text_extractor import extract_text
 from app.services.chunker import chunk_text
+from app.services.embedding_service import generate_embeddings
 
 
-app = FastAPI(title="AI Resume Screener API")
+app = FastAPI(title="AI Study Companion API")
 
 
 @app.get("/")
 def home():
-    return {"message": "AI Resume Screener API is running"}
+    return {"message": "AI Study Companion API is running"}
 
 
 @app.post("/extract-resume")
@@ -105,17 +106,29 @@ async def upload_document(document: UploadFile = File(...)):
                 detail="No readable text was found in the document."
             )
 
+        # Step 2: Split document into chunks
         chunks = chunk_text(extracted_text)
 
+        if not chunks:
+            raise HTTPException(
+                status_code=422,
+                detail="No chunks could be generated from the document."
+            )
+
+        # Step 3: Generate Gemini embeddings for every chunk
+        embeddings = generate_embeddings(chunks)
+
         return {
-            "message": "Document uploaded and chunked successfully",
+            "message": "Document uploaded, chunked, and embedded successfully",
             "filename": filename,
             "character_count": len(extracted_text),
             "chunk_count": len(chunks),
+            "embedding_dimension": len(embeddings[0]) if embeddings else 0,
             "chunks": [
                 {
                     "chunk_id": index,
-                    "text": chunk
+                    "text": chunk,
+                    "embedding_preview": embeddings[index][:5]
                 }
                 for index, chunk in enumerate(chunks)
             ]
@@ -133,5 +146,5 @@ async def upload_document(document: UploadFile = File(...)):
     except Exception as error:
         raise HTTPException(
             status_code=500,
-            detail=f"Document upload failed: {str(error)}"
+            detail=f"Document processing failed: {str(error)}"
         )
