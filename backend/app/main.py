@@ -3,6 +3,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from app.services.text_extractor import extract_text
 from app.services.chunker import chunk_text
 from app.services.embedding_service import generate_embeddings
+from app.services.qdrant_service import store_chunks
 
 
 app = FastAPI(title="AI Study Companion API")
@@ -10,7 +11,9 @@ app = FastAPI(title="AI Study Companion API")
 
 @app.get("/")
 def home():
-    return {"message": "AI Study Companion API is running"}
+    return {
+        "message": "AI Study Companion API is running"
+    }
 
 
 @app.post("/extract-resume")
@@ -90,6 +93,7 @@ async def upload_document(document: UploadFile = File(...)):
         )
 
     try:
+        # Read uploaded file
         file_bytes = await document.read()
 
         if not file_bytes:
@@ -98,7 +102,11 @@ async def upload_document(document: UploadFile = File(...)):
                 detail="The uploaded document is empty."
             )
 
-        extracted_text = extract_text(file_bytes, filename)
+        # Step 1: Extract text
+        extracted_text = extract_text(
+            file_bytes,
+            filename
+        )
 
         if not extracted_text:
             raise HTTPException(
@@ -106,7 +114,7 @@ async def upload_document(document: UploadFile = File(...)):
                 detail="No readable text was found in the document."
             )
 
-        # Step 2: Split document into chunks
+        # Step 2: Chunk the document
         chunks = chunk_text(extracted_text)
 
         if not chunks:
@@ -115,15 +123,36 @@ async def upload_document(document: UploadFile = File(...)):
                 detail="No chunks could be generated from the document."
             )
 
-        # Step 3: Generate Gemini embeddings for every chunk
+        # Step 3: Generate Gemini embeddings
         embeddings = generate_embeddings(chunks)
 
+        if not embeddings:
+            raise HTTPException(
+                status_code=500,
+                detail="Embedding generation failed."
+            )
+
+        # Step 4: Store embeddings in Qdrant
+        stored_count = store_chunks(
+            chunks=chunks,
+            embeddings=embeddings,
+            filename=filename
+        )
+
         return {
-            "message": "Document uploaded, chunked, and embedded successfully",
+            "message": (
+                "Document uploaded, chunked, embedded, "
+                "and stored successfully"
+            ),
             "filename": filename,
             "character_count": len(extracted_text),
             "chunk_count": len(chunks),
-            "embedding_dimension": len(embeddings[0]) if embeddings else 0,
+            "embedding_dimension": (
+                len(embeddings[0])
+                if embeddings
+                else 0
+            ),
+            "stored_in_qdrant": stored_count,
             "chunks": [
                 {
                     "chunk_id": index,
