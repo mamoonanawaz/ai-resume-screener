@@ -40,6 +40,13 @@ def extract_docx_text(file_bytes: bytes) -> str:
     return "\n".join(extracted_text).strip()
 
 
+def extract_txt_text(file_bytes: bytes) -> str:
+    try:
+        return file_bytes.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        return file_bytes.decode("latin-1").strip()
+
+
 def extract_text(file_bytes: bytes, filename: str) -> str:
     filename = filename.lower()
 
@@ -49,4 +56,7 @@ def extract_text(file_bytes: bytes, filename: str) -> str:
     if filename.endswith(".docx"):
         return extract_docx_text(file_bytes)
 
-    raise ValueError("Only PDF and DOCX files are supported.")
+    if filename.endswith(".txt"):
+        return extract_txt_text(file_bytes)
+
+    raise ValueError("Only PDF, DOCX, and TXT files are supported.")

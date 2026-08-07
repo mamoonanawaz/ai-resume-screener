@@ -75,3 +75,53 @@ async def submit_job_description(
         "job_description": cleaned_description,
         "character_count": len(cleaned_description)
     }
+
+
+@app.post("/upload-document")
+async def upload_document(document: UploadFile = File(...)):
+    filename = document.filename or ""
+
+    if not filename.lower().endswith((".pdf", ".txt", ".docx")):
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF, TXT, and DOCX files are supported."
+        )
+
+    try:
+        file_bytes = await document.read()
+
+        if not file_bytes:
+            raise HTTPException(
+                status_code=400,
+                detail="The uploaded document is empty."
+            )
+
+        extracted_text = extract_text(file_bytes, filename)
+
+        if not extracted_text:
+            raise HTTPException(
+                status_code=422,
+                detail="No readable text was found in the document."
+            )
+
+        return {
+            "message": "Document uploaded successfully",
+            "filename": filename,
+            "character_count": len(extracted_text),
+            "text": extracted_text
+        }
+
+    except HTTPException:
+        raise
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error)
+        )
+
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Document upload failed: {str(error)}"
+        )
