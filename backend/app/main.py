@@ -1,6 +1,7 @@
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from app.services.text_extractor import extract_text
+from app.services.chunker import chunk_text
 
 
 app = FastAPI(title="AI Resume Screener API")
@@ -104,11 +105,20 @@ async def upload_document(document: UploadFile = File(...)):
                 detail="No readable text was found in the document."
             )
 
+        chunks = chunk_text(extracted_text)
+
         return {
-            "message": "Document uploaded successfully",
+            "message": "Document uploaded and chunked successfully",
             "filename": filename,
             "character_count": len(extracted_text),
-            "text": extracted_text
+            "chunk_count": len(chunks),
+            "chunks": [
+                {
+                    "chunk_id": index,
+                    "text": chunk
+                }
+                for index, chunk in enumerate(chunks)
+            ]
         }
 
     except HTTPException:
