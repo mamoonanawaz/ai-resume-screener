@@ -14,14 +14,19 @@ if not GEMINI_API_KEY:
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
+MODEL_NAME = "gemini-embedding-001"
+EMBEDDING_DIMENSION = 768
+
 
 def generate_embedding(text: str) -> list[float]:
+    """Generate an embedding for document content."""
+
     response = client.models.embed_content(
-        model="gemini-embedding-001",
+        model=MODEL_NAME,
         contents=text,
         config=types.EmbedContentConfig(
             task_type="RETRIEVAL_DOCUMENT",
-            output_dimensionality=768
+            output_dimensionality=EMBEDDING_DIMENSION
         ),
     )
 
@@ -29,6 +34,8 @@ def generate_embedding(text: str) -> list[float]:
 
 
 def generate_embeddings(chunks: list[str]) -> list[list[float]]:
+    """Generate embeddings for all document chunks."""
+
     embeddings = []
 
     for chunk in chunks:
@@ -36,3 +43,18 @@ def generate_embeddings(chunks: list[str]) -> list[list[float]]:
         embeddings.append(embedding)
 
     return embeddings
+
+
+def generate_query_embedding(query: str) -> list[float]:
+    """Generate an embedding optimized for a retrieval query."""
+
+    response = client.models.embed_content(
+        model=MODEL_NAME,
+        contents=query,
+        config=types.EmbedContentConfig(
+            task_type="RETRIEVAL_QUERY",
+            output_dimensionality=EMBEDDING_DIMENSION
+        ),
+    )
+
+    return response.embeddings[0].values

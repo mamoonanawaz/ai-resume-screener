@@ -2,8 +2,14 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from app.services.text_extractor import extract_text
 from app.services.chunker import chunk_text
-from app.services.embedding_service import generate_embeddings
-from app.services.qdrant_service import store_chunks
+from app.services.embedding_service import (
+    generate_embeddings,
+    generate_query_embedding,
+)
+from app.services.qdrant_service import (
+    store_chunks,
+    search_chunks,
+)
 
 
 app = FastAPI(title="AI Study Companion API")
@@ -93,7 +99,7 @@ async def upload_document(document: UploadFile = File(...)):
         )
 
     try:
-        # Read uploaded file
+        # Step 1: Read uploaded file
         file_bytes = await document.read()
 
         if not file_bytes:
@@ -102,7 +108,7 @@ async def upload_document(document: UploadFile = File(...)):
                 detail="The uploaded document is empty."
             )
 
-        # Step 1: Extract text
+        # Step 2: Extract text
         extracted_text = extract_text(
             file_bytes,
             filename
@@ -114,7 +120,7 @@ async def upload_document(document: UploadFile = File(...)):
                 detail="No readable text was found in the document."
             )
 
-        # Step 2: Chunk the document
+        # Step 3: Chunk document
         chunks = chunk_text(extracted_text)
 
         if not chunks:
@@ -123,7 +129,7 @@ async def upload_document(document: UploadFile = File(...)):
                 detail="No chunks could be generated from the document."
             )
 
-        # Step 3: Generate Gemini embeddings
+        # Step 4: Generate embeddings
         embeddings = generate_embeddings(chunks)
 
         if not embeddings:
@@ -132,7 +138,7 @@ async def upload_document(document: UploadFile = File(...)):
                 detail="Embedding generation failed."
             )
 
-        # Step 4: Store embeddings in Qdrant
+        # Step 5: Store chunks + embeddings in Qdrant
         stored_count = store_chunks(
             chunks=chunks,
             embeddings=embeddings,
@@ -176,4 +182,51 @@ async def upload_document(document: UploadFile = File(...)):
         raise HTTPException(
             status_code=500,
             detail=f"Document processing failed: {str(error)}"
+        )
+
+
+@app.post("/retrieve")
+async def retrieve(
+    query: str = Form(...),
+    limit: int = Form(3)
+):
+    cleaned_query = query.strip()
+
+    if len(cleaned_query) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Query must contain at least 3 characters."
+        )
+
+    if limit < 1 or limit > 10:
+        raise HTTPException(
+            status_code=400,
+            detail="Limit must be between 1 and 10."
+        )
+
+    try:
+        # Generate embedding for user's query
+        query_embedding = generate_query_embedding(
+            cleaned_query
+        )
+
+        # Search Qdrant for relevant document chunks
+        results = search_chunks(
+            query_embedding=query_embedding,
+            limit=limit
+        )
+
+        return {
+            "query": cleaned_query,
+            "result_count": len(results),
+            "results": results
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Retrieval failed: {str(error)}"
         )

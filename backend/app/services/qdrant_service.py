@@ -77,3 +77,32 @@ def store_chunks(
     )
 
     return len(points)
+
+def search_chunks(
+    query_embedding: list[float],
+    limit: int = 3
+) -> list[dict]:
+    """Search Qdrant and return the most relevant document chunks."""
+
+    ensure_collection()
+
+    response = client.query_points(
+        collection_name=COLLECTION_NAME,
+        query=query_embedding,
+        limit=limit,
+        with_payload=True
+    )
+
+    results = []
+
+    for point in response.points:
+        payload = point.payload or {}
+
+        results.append({
+            "score": point.score,
+            "text": payload.get("text", ""),
+            "filename": payload.get("filename", ""),
+            "chunk_index": payload.get("chunk_index")
+        })
+
+    return results
